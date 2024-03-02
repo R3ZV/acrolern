@@ -1,69 +1,82 @@
 use std::{
+    error::Error,
     fs::{read_to_string, File},
-    io::{self, Write},
+    io::{self, stdout, Write},
 };
 
-#[derive(Debug)]
+use colored::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
 struct Question {
     acronym: String,
-    full_name: String,
-    correct_answers: usize,
+    meaning: String,
+    score: usize,
+    description: String,
+    tags: Vec<String>,
 }
 
-fn read_questions(file: &String) -> Vec<Question> {
-    let mut questions = Vec::new();
-
-    if let Ok(data) = read_to_string(&file) {
-        for line in data.lines() {
-            let information: Vec<&str> = line.split(":").collect();
-            questions.push(Question {
-                acronym: information[0].to_string(),
-                full_name: information[1].to_string(),
-                correct_answers: information[2].parse().unwrap(),
-            });
-        }
-    } else {
-        eprintln!("Couldn't read {}", &file)
-    }
-
-    return questions;
+fn parse_questions(file: &String) -> Result<Vec<Question>, Box<dyn Error>> {
+    let data = read_to_string(&file)?;
+    Ok(serde_json::from_str(&data)?)
 }
 
 fn save_questions(questions: &Vec<Question>, path: String) -> Result<(), std::io::Error> {
-    let mut file = File::create(path)?;
-    for question in questions {
-        let data = format!(
-            "{}:{}:{}",
-            question.acronym, question.full_name, question.correct_answers
-        );
-        writeln!(file, "{data}")?;
-    }
-    Ok(())
+    let file = File::create(path)?;
+    Ok(serde_json::to_writer_pretty(&file, questions)?)
+}
+
+fn clear_terminal() {
+    print!("{esc}[2J{esc}[1;1H", esc = 27 as char);
 }
 
 fn main() {
-    let file = String::from("acronyms");
-    let mut questions = read_questions(&file);
-    questions.sort_by(|a, b| a.correct_answers.cmp(&b.correct_answers));
+    let file = String::from("acronyms.json");
+    let mut questions = parse_questions(&file).expect("Couldn't parse the acronyms");
+    questions.sort_by(|a, b| a.score.cmp(&b.score));
 
+    clear_terminal();
     for question in &mut questions {
         println!("What does {} stand for?", question.acronym);
+        print!("> ");
+        stdout().flush().expect("Error while stdout flussing");
+
         let mut user_input = String::new();
         io::stdin()
             .read_line(&mut user_input)
             .expect("Failed reading from stdin");
 
         if user_input.trim() == "quit" {
-            println!("Ending session...");
+            println!("Session ended!");
             break;
-        } else if user_input.trim() != question.full_name {
+        } else if user_input.trim() != question.meaning {
             println!(
-                "Wrong! {} stands for {}",
-                question.acronym, question.full_name
+                "{} {} stands for {}",
+                "Wrong!".red(),
+                question.acronym.bold(),
+                question.meaning
             );
         } else {
-            println!("Correct!");
-            question.correct_answers += 1;
+            println!("{}", "Correct!".green());
+            question.score += 1;
+        }
+        println!("{}\n", question.description);
+
+        loop {
+            print!("Press {} to continue", "ENTER".bold());
+            stdout().flush().expect("Error while stdout flussing");
+
+            let mut continue_quiz = String::new();
+            io::stdin()
+                .read_line(&mut continue_quiz)
+                .expect("Failed reading from stdin");
+
+            if continue_quiz.trim() == "" {
+                clear_terminal();
+                break;
+            } else {
+                println!("Input: {}", continue_quiz);
+            }
         }
     }
 
