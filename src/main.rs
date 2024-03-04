@@ -72,7 +72,7 @@ fn game_loop(
             .read_line(&mut user_input)
             .expect("Failed reading from stdin");
 
-        if user_input.trim() == "quit" {
+        if user_input.trim().to_lowercase() == "quit" {
             println!("Session ended!");
             break;
         } else if user_input.trim() != question.meaning {
@@ -118,7 +118,7 @@ fn get_tags(questions: &Vec<Question>) -> HashSet<String> {
             tags.insert(tag.to_string());
         }
     }
-    return tags;
+    tags
 }
 
 fn main() {
@@ -127,7 +127,6 @@ fn main() {
     let file = String::from("/home/r3zv/dev/acrolern/src/acronyms.json");
     let mut questions = parse_questions(&file).expect("Couldn't parse the acronyms");
 
-    dbg!(&cli.tags);
     match cli.command {
         Command::Play => {
             questions.sort_by(|a, b| a.score.cmp(&b.score));
@@ -143,8 +142,11 @@ fn main() {
         Command::Tags => {
             let tags = get_tags(&questions);
             println!("{}", "Available tags:");
-            for tag in tags {
-                print!("{} ", tag.green());
+            for (idx, tag) in tags.iter().enumerate() {
+                print!("{}", tag.green());
+                if idx != tags.len() - 1 {
+                    print!("{}", ", ".green());
+                }
             }
             println!();
         }
